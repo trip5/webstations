@@ -1,0 +1,15 @@
+The idea here is that the WebUI can launch a page / program on the ESP32 wherein...
+
+The program will pull the index file, give you boxes to check then pull the lists from the matching playlists...
+
+ie. if you check "Classical" then the program will pull all stations from the file Classical.
+
+The program will then check for duplicate addresses and if they already exist, do not add that one.
+
+Optionally, the program will then check if that station is usable, ie if latency is good or not...
+
+I'm also thinking that perhaps you can select an option in the WebUI that if the station has trouble playing (detectable by button push or automatic),
+it will be added to a greylist...
+
+Stations on the greylist will have a certain number of "chances" in a certain time-frame.
+If they fail those chances, they will automatically be deleted from the internal playlist.

@@ -1,0 +1,67 @@
+name: Convert Playlists and Release
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  convert:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.x'
+    
+    - name: Convert playlists
+      run: |
+        python convert_playlists.py
+        python generate_index.py
+    
+    - name: Check for changes
+      id: git-check
+      run: |
+        git diff --exit-code playlists/ || echo "changed=true" >> $GITHUB_OUTPUT
+    
+    - name: Commit and push if changed
+      if: steps.git-check.outputs.changed == 'true'
+      run: |
+        git config --local user.email "github-actions[bot]@users.noreply.github.com"
+        git config --local user.name "github-actions[bot]"
+        git add playlists/
+        git commit -m "Auto-convert playlists from master folder [skip ci]"
+        git push
+    
+    - name: Generate release tag
+      id: release_tag
+      run: |
+        # Get current UTC time
+        UTC_TIME=$(date -u +"%Y-%m-%d %H:%M:%S")
+        TAG_NAME=$(date -u +"%Y-%m-%d-%H%M%S")
+        echo "tag=${TAG_NAME}" >> $GITHUB_OUTPUT
+        echo "name=${UTC_TIME}" >> $GITHUB_OUTPUT
+    
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ steps.release_tag.outputs.tag }}
+        name: ${{ steps.release_tag.outputs.name }}
+        body: |
+          Automated playlist release
+          
+          Generated: ${{ steps.release_tag.outputs.name }} UTC
+          
+          This release contains all standardized playlist files in both CSV and JSON formats, plus the master index.
+        files: |
+          playlists/*
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
