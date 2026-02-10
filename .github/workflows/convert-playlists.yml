@@ -30,15 +30,18 @@ jobs:
       run: |
         git diff --exit-code playlists/ || echo "changed=true" >> $GITHUB_OUTPUT
     
+
     - name: Commit and push if changed
+      if: steps.git-check.outputs.changed == 'true'
       run: |
         git config --local user.email "github-actions[bot]@users.noreply.github.com"
         git config --local user.name "github-actions[bot]"
         git add playlists/
-        git commit -m "Auto-convert playlists from master folder [skip ci]"
+        git commit -m "Auto-convert playlists from master folder"
         git push
-    
+
     - name: Generate release tag
+      if: steps.git-check.outputs.changed == 'true'
       id: release_tag
       run: |
         # Get current UTC time
@@ -46,8 +49,9 @@ jobs:
         TAG_NAME=$(date -u +"%Y-%m-%d-%H%M%S")
         echo "tag=${TAG_NAME}" >> $GITHUB_OUTPUT
         echo "name=${UTC_TIME}" >> $GITHUB_OUTPUT
-    
+
     - name: Create Release
+      if: steps.git-check.outputs.changed == 'true'
       uses: softprops/action-gh-release@v1
       with:
         tag_name: ${{ steps.release_tag.outputs.tag }}
@@ -66,6 +70,7 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Delete old releases
+      if: steps.git-check.outputs.changed == 'true'
       uses: dev-drprasad/delete-older-releases@v0.3.3
       with:
         keep_latest: 10
