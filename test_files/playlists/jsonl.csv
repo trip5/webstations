@@ -1,0 +1,12 @@
+Complete Entry	https://complete.example.com/stream	5
+just.url.com-radio	http://just.url.com/radio	0
+Title Field	https://titled.station.com/live	-3
+minimal.radio.net-stream	http://minimal.radio.net:8000/stream	0
+HTTPS Port	https://secure.radio.org/live.mp3	0
+custom.port.net-hq	http://custom.port.net:9090/hq	0
+no.name.here.com-audio	http://no.name.here.com/audio	10
+empty.name.test.com-stream	https://empty.name.test.com/stream	0
+Resolved Wins	https://resolved.priority.com/mp3	0
+only.host.com	http://only.host.com	0
+Max Volume	http://maxvol.example.org/stream	30
+Min Volume	http://minvol.example.org/stream	-30

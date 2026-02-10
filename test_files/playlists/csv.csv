@@ -1,0 +1,14 @@
+ice4.somafm.com-dronezone-128-mp3	https://ice4.somafm.com/dronezone-128-mp3	0
+MyStation	http://radio.example.com:8000/stream	0
+AmbientVibes	http://ambient.example.com/live	0
+ChillBeats	https://stream.chill.net/relax	5
+SpaceStation	https://ice2.somafm.com/spacestation-128-mp3	0
+EXTRA	http://deep.house.fm:8080/stream	-5
+RelaxZone	http://relax.zone.net/hq	15
+999	http://lofi.beats.com/247	0
+Name	http://multi.word.name.com/stream	3
+SingleName	http://example.org/radio	0
+Name After URL With Spaces	http://first.url.here/live	0
+TwoNames	http://many.tokens.com/stream	7
+Name1 Name2 Name3 365	http://url.before.all.com/path	0
+OnlyURL	http://just.url.example.net/mp3	0
