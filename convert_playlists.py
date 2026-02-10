@@ -21,43 +21,60 @@ class PlaylistConverter:
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(exist_ok=True)
         
-    def parse_csv_line(self, line: str) -> Optional[Tuple[str, str, int]]:
-        """Parse a CSV line and return (name, url, ovol) or None if invalid"""
-        line = line.strip()
-        if not line or line.startswith('#'):
-            return None
-            
-        # Detect delimiter: prefer tab, then space
-        if '\t' in line:
-            return self._parse_tab_delimited(line)
-        else:
-            return self._parse_space_delimited(line)
-    
+    def url_to_name(self, url: str, max_len: int = 128) -> str:
+        start = url
+        if start.startswith('http://'):
+            start = start[7:]
+        elif start.startswith('https://'):
+            start = start[8:]
+        name_chars = []
+        i = 0
+        j = 0
+        while i < len(start) and j < max_len - 1:
+            c = start[i]
+            if c == ':' and i+1 < len(start) and start[i+1].isdigit():
+                while i < len(start) and start[i] != '/':
+                    i += 1
+                if i >= len(start):
+                    break
+                c = start[i]
+            if c in ['/', '=', '&', '?']:
+                if j > 0 and name_chars[j-1] != '-':
+                    name_chars.append('-')
+                    j += 1
+            else:
+                name_chars.append(c)
+                j += 1
+            i += 1
+        while name_chars and name_chars[-1] == '-':
+            name_chars.pop()
+        return ''.join(name_chars)
+
     def _parse_tab_delimited(self, line: str) -> Optional[Tuple[str, str, int]]:
         """Parse tab-delimited line"""
         tokens = line.split('\t')
         tokens = [t.strip() for t in tokens if t.strip()]
-        
-        if len(tokens) == 1:
-            # URL only
+        t = len(tokens)
+        if t == 1:
             if self._is_url(tokens[0]):
                 url = self._normalize_url(tokens[0])
-                name = self._url_to_name(url)
+                name = self.url_to_name(url)
                 return (name, url, 0)
             return None
-            
-        elif len(tokens) == 2:
-            # Two fields: one is URL, one is name
-            url_idx = 0 if self._is_url(tokens[0]) else (1 if self._is_url(tokens[1]) else -1)
-            if url_idx == -1:
+        elif t == 2:
+            url_idx = -1
+            name_idx = -1
+            for i in range(2):
+                if self._is_url(tokens[i]):
+                    url_idx = i
+                else:
+                    name_idx = i
+            if url_idx == -1 or name_idx == -1:
                 return None
-            name_idx = 1 - url_idx
             url = self._normalize_url(tokens[url_idx])
-            name = self._clean_name(tokens[name_idx])
+            name = tokens[name_idx]
             return (name, url, 0)
-            
-        else:  # 3+ fields
-            # Find URL (required)
+        elif t >= 3:
             url_idx = -1
             for i, token in enumerate(tokens):
                 if self._is_url(token):
@@ -65,8 +82,6 @@ class PlaylistConverter:
                     break
             if url_idx == -1:
                 return None
-            
-            # Find ovol (optional numeric value)
             ovol = 0
             ovol_idx = -1
             for i, token in enumerate(tokens):
@@ -74,29 +89,27 @@ class PlaylistConverter:
                     continue
                 if self._is_ovol(token):
                     ovol_idx = i
-                    ovol = self._parse_ovol(token)
+                    val = self._parse_ovol(token)
+                    ovol = val
                     break
-            
-            # Build name from remaining fields
             url = self._normalize_url(tokens[url_idx])
-            name_parts = []
-            for i, token in enumerate(tokens):
-                if i != url_idx and i != ovol_idx:
-                    name_parts.append(token)
-            
-            name = ' '.join(name_parts).strip()
+            name = ''
+            if url_idx > 0:
+                name = tokens[0]
+            elif url_idx == 0 and t > 1:
+                if ovol_idx == 1 and t == 2:
+                    name = ''
+                else:
+                    name = tokens[1]
             if not name:
-                name = self._url_to_name(url)
-            else:
-                name = self._clean_name(name)
-            
+                name = self.url_to_name(url)
             return (name, url, ovol)
+        return None
     
     def _parse_space_delimited(self, line: str) -> Optional[Tuple[str, str, int]]:
         """Parse space-delimited line"""
         tokens = line.split()
-        
-        # Find URL token
+        t = len(tokens)
         url_idx = -1
         for i, token in enumerate(tokens):
             if self._is_url(token):
@@ -104,36 +117,32 @@ class PlaylistConverter:
                 break
         if url_idx == -1:
             return None
-        
         url = self._normalize_url(tokens[url_idx])
+        name = ''
         ovol = 0
-        ovol_idx = -1
-        
-        # Check for ovol at the end or near URL
-        for i in [len(tokens)-1, 0]:  # Check end first, then beginning
-            if i == url_idx:
-                continue
-            if i < len(tokens) and self._is_ovol(tokens[i]):
-                ovol_idx = i
-                ovol = self._parse_ovol(tokens[i])
-                break
-        
-        # Build name from remaining tokens
-        name_parts = []
-        for i, token in enumerate(tokens):
-            if i != url_idx and i != ovol_idx:
-                name_parts.append(token)
-        
-        name = ' '.join(name_parts).strip()
-        
-        # Handle "Radio Random Bank 16 Stacja 62" -> "Radio Random Bank"
-        name = self._clean_name(name)
-        
+        if url_idx > 0:
+            name = tokens[0]
+            lastToken = tokens[-1]
+            try:
+                val = int(lastToken)
+                if -64 <= val <= 64 and t >= 2:
+                    if val < -30: val = -30
+                    if val > 30: val = 30
+                    ovol = val
+                else:
+                    ovol = 0
+            except Exception:
+                ovol = 0
+        else:
+            for i in range(url_idx + 1, t):
+                if name:
+                    name += ' '
+                name += tokens[i]
+            ovol = 0
         if not name:
-            name = self._url_to_name(url)
-        
+            name = self.url_to_name(url)
         return (name, url, ovol)
-    
+
     def _is_url(self, token: str) -> bool:
         """Check if token looks like a URL"""
         return ('.' in token and ('/' in token or '://' in token)) or token.startswith('http')
@@ -160,32 +169,6 @@ class PlaylistConverter:
         if not url.startswith('http://') and not url.startswith('https://'):
             return f'http://{url}'
         return url
-    
-    def _url_to_name(self, url: str) -> str:
-        """Convert URL to a readable name"""
-        name = url
-        if name.startswith('http://'):
-            name = name[7:]
-        elif name.startswith('https://'):
-            name = name[8:]
-        name = name.replace('/', ' ')
-        return name.strip()
-    
-    def _clean_name(self, name: str) -> str:
-        """Clean and process station name"""
-        name = name.strip()
-        
-        # Handle "Radio Random Bank 16 Stacja 62" pattern
-        # Remove "Bank XX Stacja YY" suffixes
-        name = re.sub(r'\s+Bank\s+\d+\s+Stacja\s+\d+.*$', '', name, flags=re.IGNORECASE)
-        
-        # Replace forward slashes with spaces
-        name = name.replace('/', ' ')
-        
-        # Clean up multiple spaces
-        name = re.sub(r'\s+', ' ', name)
-        
-        return name.strip()
     
     def parse_json_line(self, line: str) -> Optional[Tuple[str, str, int]]:
         """Parse a JSON line (Ka-Radio format with URL/File/Port or standard format)"""
