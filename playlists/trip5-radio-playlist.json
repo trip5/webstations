@@ -44,6 +44,7 @@
 {"name":"Radio Classic Mozart","url":"http://philae.shoutca.st:8204/stream","ovol":"0"}
 {"name":"Amadeus Vivo Classical","url":"http://18.220.84.192:8484","ovol":"0"}
 {"name":"U of Oregon Classical KWAX","url":"http://streaming.kwax.com:8000/stream1","ovol":"0"}
+{"name":"Ancient FM","url":"https://mediaserv73.live-streams.nl:18058/stream","ovol":"0"}
 {"name":"Classic FM","url":"https://media-ice.musicradio.com/ClassicFMMP3","ovol":"0"}
 {"name":"Euro Smooth Jazz","url":"http://eurosmoothjazz.stream.laut.fm/eurosmoothjazz","ovol":"0"}
 {"name":"Swinging radio 60s","url":"http://s2.xrad.io:8058/stream","ovol":"0"}
@@ -64,3 +65,8 @@
 {"name":"CJLU 93.9 Gospel Halifax","url":"https://harvestersfm.radioca.st/CJLU?ver=454799","ovol":"0"}
 {"name":"CIOG FM Gospel Charlottetown","url":"https://harvestersciog.radioca.st/CIOG","ovol":"0"}
 {"name":"CKDU Dalhousie Halifax","url":"https://archive1.ckdu.ca:9750/ckdu_1_on_air_low.mp3","ovol":"0"}
+{"name":"Majestic Jukebox Radio","url":"http://uk3.internet-radio.com:8405/live","ovol":"0"}
+{"name":"Radio Caroline 320","url":"http://happy.radiocaroline319.nl:8319/radio320.mp3","ovol":"0"}
+{"name":"A Mississippi Blues 320","url":"http://cast1.torontocast.com:4450/;","ovol":"0"}
+{"name":"Groove Salad 256","url":"https://ice6.somafm.com/groovesalad-256-mp3","ovol":"0"}
+{"name":"bLaGuEs cOuRtEs","url":"https://radio.blagues-courtes.fr/stream","ovol":"0"}
