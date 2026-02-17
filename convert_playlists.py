@@ -138,6 +138,62 @@ class PlaylistConverter:
             name = self.url_to_name(url)
         return (name, url, ovol)
 
+    def _parse_two_space_delimited(self, line: str) -> Optional[Tuple[str, str, int]]:
+        """Parse two-space-delimited line (2+ spaces as delimiter)"""
+        # Split on 2 or more consecutive spaces
+        tokens = [t.strip() for t in re.split(r'  +', line) if t.strip()]
+        t = len(tokens)
+        if t == 1:
+            if self._is_url(tokens[0]):
+                url = self._normalize_url(tokens[0])
+                name = self.url_to_name(url)
+                return (name, url, 0)
+            return None
+        elif t == 2:
+            url_idx = -1
+            name_idx = -1
+            for i in range(2):
+                if self._is_url(tokens[i]):
+                    url_idx = i
+                else:
+                    name_idx = i
+            if url_idx == -1 or name_idx == -1:
+                return None
+            url = self._normalize_url(tokens[url_idx])
+            name = tokens[name_idx]
+            return (name, url, 0)
+        elif t >= 3:
+            # Find URL (must contain . and / or ://)
+            url_idx = -1
+            for i, token in enumerate(tokens):
+                if self._is_url(token):
+                    url_idx = i
+                    break
+            if url_idx == -1:
+                return None
+            # Find ovol (first valid int -64 to 64)
+            ovol = 0
+            ovol_idx = -1
+            for i, token in enumerate(tokens):
+                if i == url_idx:
+                    continue
+                if self._is_ovol(token):
+                    ovol_idx = i
+                    ovol = self._parse_ovol(token)
+                    break
+            # Find name: first field that's not URL and not ovol
+            name = ''
+            for i, token in enumerate(tokens):
+                if i == url_idx or i == ovol_idx:
+                    continue
+                if not name:
+                    name = token
+            url = self._normalize_url(tokens[url_idx])
+            if not name:
+                name = self.url_to_name(url)
+            return (name, url, ovol)
+        return None
+
     def _is_url(self, token: str) -> bool:
         """Check if token looks like a URL"""
         return ('.' in token and ('/' in token or '://' in token)) or token.startswith('http')
@@ -307,13 +363,16 @@ class PlaylistConverter:
                     except Exception:
                         pass
             else:
-                # CSV/TSV detection: for each line, use tab-delimited if tab present, else space-delimited
+                # CSV/TSV detection: for each line, use tab-delimited if tab present, 
+                # two-space-delimited if 2+ spaces present, else space-delimited
                 for line in f:
                     line = line.strip()
                     if not line:
                         continue
                     if '\t' in line:
                         result = self._parse_tab_delimited(line)
+                    elif re.search(r'  +', line):  # 2 or more consecutive spaces
+                        result = self._parse_two_space_delimited(line)
                     else:
                         result = self._parse_space_delimited(line)
                     if result:
