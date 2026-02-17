@@ -10,8 +10,8 @@ from pathlib import Path
 from collections import defaultdict
 
 
-def generate_index(playlists_dir: str = "playlists", output_file: str = "playlists/index.json"):
-    """Generate index.json from all files in playlists directory"""
+def generate_index(playlists_dir: str = "playlists-output", output_file: str = "playlists-output/index.json"):
+    """Generate index.json from all files in playlists-output directory"""
     playlists_path = Path(playlists_dir)
     
     if not playlists_path.exists():

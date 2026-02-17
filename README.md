@@ -7,10 +7,7 @@ Sorry for the AI-generated readme... I'll improve this at some point.
 
 ## Project Structure
 
-- **playlists.master/** - Source playlist files in various formats (CSV, JSON)
-- **playlists/** - Standardized output files (auto-generated)
-  - Individual playlist files in both CSV and JSON formats
-  - `index.json` - Master index of all available playlists
+- **playlists/** - Source playlist files in various formats (CSV, JSON)
 - **convert_playlists.py** - Converts playlists to standardized formats
 - **generate_index.py** - Generates the master index file
 
@@ -18,11 +15,14 @@ Sorry for the AI-generated readme... I'll improve this at some point.
 
 The project automatically converts playlist files from various formats into **both CSV and JSON standardized formats**. Each input file produces two output files.
 
+These files are then put into the latest release
+
 ### Input Formats (playlists.master/)
 
 **CSV files** can use various formats:
 - Tab-delimited: `name\turl\tovol`
 - Space-delimited: `name url ovol` or `url name` or `name ovol url`
+- Double-space-delimited `name  url  ovol`
 - Mixed formats with different field orders
 
 **JSON files** can be:
@@ -81,15 +81,14 @@ Or run both:
 python convert_playlists.py && python generate_index.py
 ```
 
-This will process all files in `playlists.master/` and output standardized files plus `index.json` to `playlists/`.
+This will process all files in `playlists/` and output standardized files plus `index.json` to `playlists-output/`.
 
 ## GitHub Actions
 
 Any push to the `main` branch automatically triggers the workflow, which:
 1. Runs the conversion script to standardize all playlists
 2. Generates the master index file
-3. Commits updated files to `playlists/`
-4. Creates a new release with all playlist files
+3. Creates a new release with all playlist files
 
 ### Releases
 
@@ -102,6 +101,6 @@ Each workflow run creates a new release:
 ## Contributing
 
 To add new stations:
-1. Add or update files in `playlists.master/`
+1. Add or update files in `playlists/`
 2. Commit and push your changes
 3. The workflow will automatically generate standardized output files and create a release

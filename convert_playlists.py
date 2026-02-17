@@ -16,7 +16,7 @@ from typing import Tuple, Optional, List, Dict
 
 
 class PlaylistConverter:
-    def __init__(self, input_dir: str = "playlists.master", output_dir: str = "playlists"):
+    def __init__(self, input_dir: str = "playlists", output_dir: str = "playlists-output"):
         self.input_dir = Path(input_dir)
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(exist_ok=True)
