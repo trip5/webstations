@@ -58,11 +58,11 @@ A master index file is automatically generated in `playlists/index.json` listing
 
 ### Example
 
-Input file: `playlists.master/my-stations.csv`
+Input file: `playlists/my-stations.csv`
 
 Output files:
-- `playlists/my-stations.csv` (standardized tab-delimited)
-- `playlists/my-stations.json` (JSON array format)
+- `playlists-output/my-stations.csv` (standardized tab-delimited)
+- `playlists-output/my-stations.json` (JSON array format)
 
 ## Running Locally
 
