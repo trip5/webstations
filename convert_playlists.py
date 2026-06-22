@@ -69,8 +69,27 @@ class PlaylistConverter:
                     url_idx = i
                 else:
                     name_idx = i
-            if url_idx == -1 or name_idx == -1:
+            if url_idx == -1:
+                # Try to extract embedded URL from either token
+                for i in range(2):
+                    extracted = self._extract_url_from_token(tokens[i])
+                    if extracted:
+                        name_prefix, url_part = extracted
+                        url = self._normalize_url(url_part)
+                        other_idx = 1 - i
+                        ovol = 0
+                        if self._is_ovol(tokens[other_idx]):
+                            ovol = self._parse_ovol(tokens[other_idx])
+                            name = name_prefix if name_prefix else self.url_to_name(url)
+                        else:
+                            name = name_prefix if name_prefix else tokens[other_idx]
+                        if not name:
+                            name = self.url_to_name(url)
+                        return (name, url, ovol)
                 return None
+            if name_idx == -1:
+                name = self.url_to_name(self._normalize_url(tokens[url_idx]))
+                return (name, self._normalize_url(tokens[url_idx]), 0)
             url = self._normalize_url(tokens[url_idx])
             name = tokens[name_idx]
             return (name, url, 0)
@@ -116,13 +135,40 @@ class PlaylistConverter:
                 url_idx = i
                 break
         if url_idx == -1:
+            # Try to extract embedded URL from any token
+            for i, token in enumerate(tokens):
+                extracted = self._extract_url_from_token(token)
+                if extracted:
+                    name_prefix, url_part = extracted
+                    url = self._normalize_url(url_part)
+                    # Build name from tokens before this one + prefix
+                    name_parts = tokens[:i]
+                    if name_prefix:
+                        name_parts.append(name_prefix)
+                    name = ' '.join(name_parts) if name_parts else ''
+                    # Check for ovol in remaining tokens after URL extraction
+                    ovol = 0
+                    remaining = tokens[i+1:]
+                    if remaining and self._is_ovol(remaining[-1]):
+                        ovol = self._parse_ovol(remaining[-1])
+                    if not name:
+                        name = self.url_to_name(url)
+                    return (name, url, ovol)
             return None
         url = self._normalize_url(tokens[url_idx])
         name = ''
         ovol = 0
         if url_idx > 0:
-            # Name = first token
-            name = tokens[0]
+            # Check if the token before the URL has an embedded URL (e.g., name+URL merged)
+            prev_token = tokens[url_idx - 1]
+            extracted = self._extract_url_from_token(prev_token)
+            if extracted:
+                # The URL was actually embedded in the previous token
+                name_prefix, _ = extracted
+                name = name_prefix if name_prefix else ' '.join(tokens[:url_idx - 1])
+            else:
+                # Name = first token
+                name = tokens[0]
             # Check last token for ovol
             lastToken = tokens[-1]
             if self._is_ovol(lastToken):
@@ -157,8 +203,28 @@ class PlaylistConverter:
                     url_idx = i
                 else:
                     name_idx = i
-            if url_idx == -1 or name_idx == -1:
+            if url_idx == -1:
+                # Try to extract embedded URL from either token
+                for i in range(2):
+                    extracted = self._extract_url_from_token(tokens[i])
+                    if extracted:
+                        name_prefix, url_part = extracted
+                        url = self._normalize_url(url_part)
+                        other_idx = 1 - i
+                        ovol = 0
+                        if self._is_ovol(tokens[other_idx]):
+                            ovol = self._parse_ovol(tokens[other_idx])
+                            name = name_prefix if name_prefix else self.url_to_name(url)
+                        else:
+                            name = name_prefix if name_prefix else tokens[other_idx]
+                        if not name:
+                            name = self.url_to_name(url)
+                        return (name, url, ovol)
                 return None
+            if name_idx == -1:
+                # URL found but no non-URL token for name
+                name = self.url_to_name(self._normalize_url(tokens[url_idx]))
+                return (name, self._normalize_url(tokens[url_idx]), 0)
             url = self._normalize_url(tokens[url_idx])
             name = tokens[name_idx]
             return (name, url, 0)
@@ -195,8 +261,21 @@ class PlaylistConverter:
         return None
 
     def _is_url(self, token: str) -> bool:
-        """Check if token looks like a URL"""
-        return ('.' in token and ('/' in token or '://' in token)) or token.startswith('http')
+        """Check if token looks like a URL (must start with protocol or bare domain)"""
+        if token.startswith('http://') or token.startswith('https://'):
+            return True
+        # Bare URL: must start with alphanumeric domain pattern like example.com/path
+        return bool(re.match(r'^[a-zA-Z0-9][-a-zA-Z0-9.]*\.[a-zA-Z]{2,}[/:#]', token))
+    
+    def _extract_url_from_token(self, token: str) -> Optional[Tuple[str, str]]:
+        """If a token contains an embedded http(s):// URL, extract (name_prefix, url) from it."""
+        for prefix in ['http://', 'https://']:
+            idx = token.find(prefix)
+            if idx >= 0:
+                name_part = token[:idx].strip()
+                url_part = token[idx:]
+                return (name_part, url_part)
+        return None
     
     def _is_ovol(self, token: str) -> bool:
         """Check if token is a valid ovol value"""
@@ -302,7 +381,7 @@ class PlaylistConverter:
         entries = self.parse_file(input_path)
         
         if not entries:
-            print(f"  ⚠ No valid entries found in {input_path.name}")
+            print(f"  [!] No valid entries found in {input_path.name}")
             return False
         
         # Generate base name (without extension)
@@ -315,8 +394,8 @@ class PlaylistConverter:
         self.write_csv_output(entries, csv_path)
         self.write_json_output(entries, json_path)
         
-        print(f"  ✓ Wrote {len(entries)} entries to {csv_path.name}")
-        print(f"  ✓ Wrote {len(entries)} entries to {json_path.name}")
+        print(f"  [OK] Wrote {len(entries)} entries to {csv_path.name}")
+        print(f"  [OK] Wrote {len(entries)} entries to {json_path.name}")
         return True
     
     def convert_all(self) -> int:

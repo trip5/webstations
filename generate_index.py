@@ -65,7 +65,7 @@ def generate_index(playlists_dir: str = "playlists-output", output_file: str = "
     with open(output_path, 'w', encoding='utf-8') as f:
         json.dump(index_entries, f, separators=(',', ':'), ensure_ascii=False)
     
-    print(f"✓ Generated {output_path.name} with {len(index_entries)} playlists")
+    print(f"[OK] Generated {output_path.name} with {len(index_entries)} playlists")
     return True
 
 
