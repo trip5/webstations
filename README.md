@@ -1,27 +1,53 @@
 # webstations
-An attempt at open-sourcing curated web-radio lists.
 
-## Trip 5 Note
-
-Sorry for the AI-generated readme... I'll improve this at some point.
-
-## Project Structure
-
-- **playlists/** - Source playlist files in various formats (CSV, JSON)
-- **convert_playlists.py** - Converts playlists to standardized formats
-- **generate_index.py** - Generates the master index file
+Open-source curated web-radio lists!
 
 ## How It Works
 
-The project automatically converts playlist files from various formats into **both CSV and JSON standardized formats**. Each input file produces two output files.
+The project automatically converts playlist files from various formats into CSV and JSON standardized formats. Each input file produces two output files.
 
-These files are then put into the latest release
+These files are then put into the latest Release with an `index.json` which points to each file.
 
-### Input Formats
+These files are consumed by **Curated Lists** in [ehRadio](https://github.com/trip5/ehRadio) to facilitate importing of playlists directly via the WebUI.
+
+## GitHub Actions
+
+Any push to the `main` branch automatically triggers the workflow, which:
+1. Runs the conversion script to standardize all playlists
+2. Generates the master index file
+3. Creates a new release with all playlist files
+
+## Contributing
+
+### Submit via GitHub Issue
+
+1. Create a new issue with the **`playlist`** label
+2. Include the text of your playlist file between markers:
+   ```
+   PLAYLIST_NAME="My Stations"
+   PLAYLIST_START/
+   My Station	http://example.com/stream	0
+   Another Station	http://example.com/stream2	0
+   /PLAYLIST_END
+   ```
+   Or attach a `.csv` or `.json` file to the issue (or paste JSON between the markers — the parser auto-detects it).
+3. The workflow validates your playlist, commits it, and auto-closes the issue
+
+Any format from the [Input Formats](#input-formats) section above is accepted — the converter handles all of them.
+
+Errors will result in a comment on the Issue.  Playlists can be re-submitted as a comment and the workflow will attempt to process it again... up to 5 times.
+
+### Submit via Pull Request
+
+1. Add or update files in `playlists/`
+2. Commit and push your changes
+3. The workflow will automatically generate standardized output files and create a Release
+
+## Input Formats
 
 The converter auto-detects and handles many formats — even mixed within the same file. Each line is parsed independently.
 
-#### CSV / Plain Text (`.csv`)
+### CSV / Plain Text (`.csv`)
 
 Every line is auto-classified as one of these delimiter styles:
 
@@ -43,7 +69,7 @@ http://example.com/stream	My Station
 0	My Station	http://example.com/stream
 ```
 
-##### Special cases
+#### Special cases
 
 | Case | Example | Behavior |
 |---|---|---|
@@ -53,7 +79,7 @@ http://example.com/stream	My Station
 | **Unicode names** | `РЕТРО ХИТ - RETRO HIT http://retro.volna.top/Retro` | Full Unicode support |
 | **Mixed styles** per file | Line 1 tab-delimited, line 2 space-delimited | Each line auto-detected independently |
 
-#### JSON (`.json` or `.jsonl`)
+### JSON (`.json` or `.jsonl`)
 
 The parser auto-detects the JSON structure on the first line:
 
@@ -68,13 +94,13 @@ The parser auto-detects the JSON structure on the first line:
 - **URL**: `url_resolved` (priority), `url`, or built from `host`/`URL` + `file`/`File` + `port`/`Port`
 - **Ovol**: `ovol`, `Ovol`
 
-### Output Formats (playlists/)
+## Output Formats
 
 Each input file is converted to **both formats**:
 
 **CSV files**: Tab-delimited format
 ```
-Station Name\thttp://url.com/stream\t0
+Station Name   http://url.com/stream   0
 ```
 
 **JSON files**: Compact JSON array format (no line breaks)
@@ -82,7 +108,7 @@ Station Name\thttp://url.com/stream\t0
 [{"name":"Station Name","url":"http://url.com/stream","ovol":"0"}]
 ```
 
-### Master Index (index.json)
+## Master Index (`index.json`)
 
 A master index file is automatically generated in `playlists/index.json` listing all available playlists:
 
@@ -95,49 +121,13 @@ A master index file is automatically generated in `playlists/index.json` listing
 - **json**: JSON filename  
 - **total**: Number of stations in the playlist
 
-### Example
+## Update History
 
-Input file: `playlists/my-stations.csv`
+### Updates
 
-Output files:
-- `playlists-output/my-stations.csv` (standardized tab-delimited)
-- `playlists-output/my-stations.json` (JSON array format)
-
-## GitHub Actions
-
-Any push to the `main` branch automatically triggers the workflow, which:
-1. Runs the conversion script to standardize all playlists
-2. Generates the master index file
-3. Creates a new release with all playlist files
-
-### Releases
-
-Each workflow run creates a new release:
-- **Tag**: Date-time format `YYYY-MM-DD-HHmmss` (e.g., `2026-02-09-041400`)
-- **Name**: Human-readable timestamp with colons (e.g., `2026-02-09 04:14:00`)
-- **Marked as**: Latest release
-- **Contains**: All files from the `playlists/` folder (CSV, JSON, and index.json)
-
-## Contributing
-
-### Submit via GitHub Issue (easy)
-
-1. Create a new issue with the **`playlist`** label
-2. Include your stations in the issue body between markers:
-   ```
-   PLAYLIST_NAME="My Stations"
-   PLAYLIST_START/
-   My Station	http://example.com/stream	0
-   Another Station	http://example.com/stream2	0
-   /PLAYLIST_END
-   ```
-   Or attach a `.csv` or `.json` file to the issue (or paste JSON between the markers — the parser auto-detects it).
-3. The workflow validates your playlist, commits it, and auto-closes the issue
-
-Any format from the [Input Formats](#input-formats) section above is accepted — the converter handles all of them.
-
-### Submit via Pull Request
-
-1. Add or update files in `playlists/`
-2. Commit and push your changes
-3. The workflow will automatically generate standardized output files and create a release
+| Date       | Release Notes    |
+| ---------- | ---------------- |
+| 2026.06.27 | Submissions now possible through `Issues` |
+| 2026.02.20 | Interactions eith `ehRadio` working |
+| 2026.02.09 | Actually began work on the idea |
+| 2025.06.11 | First commit, idea conceived |
