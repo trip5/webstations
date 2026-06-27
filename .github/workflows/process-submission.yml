@@ -28,14 +28,17 @@ jobs:
       - name: Build combined body (issue + comment)
         id: body
         run: |
-          BODY="${{ github.event.issue.body }}"
+          # Use env vars to safely capture multiline content (avoids bash quoting issues)
+          ISSUE_BODY="${{ github.event.issue.body }}"
           COMMENT_BODY="${{ github.event.comment.body }}"
+          BODY="$ISSUE_BODY"
           if [ -n "$COMMENT_BODY" ]; then
             BODY="${BODY}${COMMENT_BODY}"
           fi
-          # Write to temp file for use by subsequent steps
-          echo "$BODY" > /tmp/combined_body.txt
+          # Write to temp file using printf to preserve content exactly
+          printf '%s\n' "$BODY" > /tmp/combined_body.txt
           echo "Combined body length: $(wc -c < /tmp/combined_body.txt)"
+          echo "Body preview: $(head -c 200 /tmp/combined_body.txt)"
 
       - name: Check for playlist data
         id: check
@@ -63,8 +66,9 @@ jobs:
           USERNAME="${{ github.event.issue.user.login }}"
           echo "username=$USERNAME" >> $GITHUB_OUTPUT
 
-          # Extract PLAYLIST_NAME from issue body
-          PLAYLIST_NAME=$(echo "$BODY" | grep -oP 'PLAYLIST_NAME="\K[^"]*' | head -1)
+          # Extract PLAYLIST_NAME from issue body (handles "…", '…', and spaces around =)
+          PLAYLIST_NAME=$(printf '%s\n' "$BODY" | grep -oP "PLAYLIST_NAME\s*=\s*['\"]?\K[^\"'\n]+" | head -1 | tr -d "'\"")
+          echo "DEBUG: raw PLAYLIST_NAME='$PLAYLIST_NAME'"
           if [ -z "$PLAYLIST_NAME" ]; then
             PLAYLIST_NAME="Playlist"
           fi
@@ -210,7 +214,7 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
-              body: `✅ **Published!**\n\nYour playlist \`${filename}\` (${stationCount} stations) will appear in ehRadio Curated Lists shortly.\n\nThanks for sharing! 🎵`
+              body: `✅ **Published!**\n\nYour playlist \`${filename}\` (${stationCount} stations) will appear in Releases and ehRadio Curated Lists shortly.\n\nThanks for sharing! 🎵`
             });
 
             await github.rest.issues.update({
