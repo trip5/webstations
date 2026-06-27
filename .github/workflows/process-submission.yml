@@ -8,8 +8,8 @@ on:
 
 jobs:
   process-playlist:
-    # Only run on issues labeled 'playlist' (works for both issue and comment events)
-    if: contains(github.event.issue.labels.*.name, 'playlist')
+    # Run on every issue/comment — the "Check for playlist data" step below
+    # exits gracefully (skip=true) when no playlist data is found.
     runs-on: ubuntu-latest
     permissions:
       contents: write
