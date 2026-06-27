@@ -1,0 +1,246 @@
+name: Process Playlist Submission
+
+on:
+  issues:
+    types: [opened]
+  issue_comment:
+    types: [created]
+
+jobs:
+  process-playlist:
+    # Only run on issues labeled 'playlist' (works for both issue and comment events)
+    if: contains(github.event.issue.labels.*.name, 'playlist')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      actions: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Build combined body (issue + comment)
+        id: body
+        run: |
+          BODY="${{ github.event.issue.body }}"
+          COMMENT_BODY="${{ github.event.comment.body }}"
+          if [ -n "$COMMENT_BODY" ]; then
+            BODY="${BODY}${COMMENT_BODY}"
+          fi
+          # Write to temp file for use by subsequent steps
+          echo "$BODY" > /tmp/combined_body.txt
+          echo "Combined body length: $(wc -c < /tmp/combined_body.txt)"
+
+      - name: Check for playlist data
+        id: check
+        run: |
+          BODY=$(cat /tmp/combined_body.txt)
+          HAS_MARKERS=$(echo "$BODY" | grep -c 'PLAYLIST_START/' || true)
+          HAS_ATTACHMENT=$(echo "$BODY" | grep -cE 'https://github\.com/user-attachments/assets/[a-f0-9-]+' || true)
+
+          if [ "$HAS_MARKERS" -eq 0 ] && [ "$HAS_ATTACHMENT" -eq 0 ]; then
+            echo "No playlist data found — exiting gracefully"
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+            echo "has_markers=$HAS_MARKERS" >> $GITHUB_OUTPUT
+            echo "has_attachment=$HAS_ATTACHMENT" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Extract metadata (username + playlist name)
+        if: steps.check.outputs.skip != 'true'
+        id: meta
+        run: |
+          BODY=$(cat /tmp/combined_body.txt)
+
+          # Extract GitHub username from issue author
+          USERNAME="${{ github.event.issue.user.login }}"
+          echo "username=$USERNAME" >> $GITHUB_OUTPUT
+
+          # Extract PLAYLIST_NAME from issue body
+          PLAYLIST_NAME=$(echo "$BODY" | grep -oP 'PLAYLIST_NAME="\K[^"]*' | head -1)
+          if [ -z "$PLAYLIST_NAME" ]; then
+            PLAYLIST_NAME="Playlist"
+          fi
+          # Sanitize: replace spaces/special chars for safe filename
+          SAFE_NAME=$(echo "$PLAYLIST_NAME" | sed 's/[^a-zA-Z0-9_-]/_/g' | sed 's/__*/_/g' | sed 's/^_//;s/_$//')
+          if [ -z "$SAFE_NAME" ]; then
+            SAFE_NAME="Playlist"
+          fi
+          echo "playlist_name=$SAFE_NAME" >> $GITHUB_OUTPUT
+
+          FILENAME="${USERNAME}-${SAFE_NAME}.csv"
+          echo "filename=$FILENAME" >> $GITHUB_OUTPUT
+
+          echo "Processing: $FILENAME"
+
+      - name: Extract inline playlist data
+        if: steps.check.outputs.skip != 'true' && steps.check.outputs.has_markers != '0'
+        id: inline
+        run: |
+          BODY=$(cat /tmp/combined_body.txt)
+          # Extract content between PLAYLIST_START/ and /PLAYLIST_END
+          DATA=$(echo "$BODY" | sed -n '/PLAYLIST_START\//, /\/PLAYLIST_END/p' | sed '1d;$d')
+
+          # Check if data is non-empty and not a placeholder
+          if [ -z "$DATA" ] || echo "$DATA" | grep -q '\[see attached'; then
+            echo "Markers found but no real data — will check for attachment"
+            echo "has_data=false" >> $GITHUB_OUTPUT
+          else
+            echo "$DATA" > playlist.csv
+            echo "has_data=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Download attached CSV file
+        if: steps.check.outputs.skip != 'true' && (steps.check.outputs.has_attachment != '0') && (steps.inline.outputs.has_data != 'true')
+        run: |
+          BODY=$(cat /tmp/combined_body.txt)
+          # Find attachment URLs in the issue body
+          ATTACH_URL=$(echo "$BODY" | grep -oP 'https://github\.com/user-attachments/assets/[a-f0-9-]+' | head -1)
+
+          if [ -n "$ATTACH_URL" ]; then
+            echo "Downloading attachment: $ATTACH_URL"
+            curl -sSL -o playlist.csv "$ATTACH_URL"
+          else
+            echo "No downloadable attachment found"
+            exit 1
+          fi
+
+      - name: Validate playlist format
+        if: steps.check.outputs.skip != 'true'
+        id: validate
+        run: |
+          if [ ! -f playlist.csv ]; then
+            echo "No playlist data extracted"
+            exit 1
+          fi
+
+          # Use the Python converter for validation (handles all accepted formats)
+          RESULT=$(python convert_playlists.py --validate playlist.csv)
+          VALID_EXIT=$?
+
+          if [ "$VALID_EXIT" -ne 0 ]; then
+            echo "$RESULT"
+            exit 1
+          fi
+
+          # Parse station count from validation output
+          LINE_COUNT=$(echo "$RESULT" | grep -oP 'OK: \K\d+')
+          echo "line_count=$LINE_COUNT" >> $GITHUB_OUTPUT
+          echo "$RESULT"
+
+      - name: Enforce 2-playlist limit
+        if: steps.check.outputs.skip != 'true'
+        env:
+          USERNAME: ${{ steps.meta.outputs.username }}
+          FILENAME: ${{ steps.meta.outputs.filename }}
+        run: |
+          # ── Exception list: usernames below are exempt from the 2-playlist limit ──
+          #    Space-separated list. Add/remove usernames as needed.
+          EXEMPT_USERS="trip5"
+
+          mkdir -p playlists
+
+          # Check if user is exempt
+          if echo " $EXEMPT_USERS " | grep -q " $USERNAME "; then
+            echo "User '$USERNAME' is exempt from the playlist limit (unlimited)."
+
+            # Still replace same-name playlist if it exists
+            if [ -f "playlists/${FILENAME}" ]; then
+              echo "Replacing existing: $FILENAME"
+              rm "playlists/${FILENAME}"
+            fi
+          else
+            # List all playlists for this user
+            USER_FILES=$(ls playlists/${USERNAME}-* 2>/dev/null || true)
+
+            # Count existing files
+            COUNT=$(echo "$USER_FILES" | grep -c '.' || echo 0)
+
+            if [ "$COUNT" -ge 2 ]; then
+              echo "User already has $COUNT playlists. Enforcing 2-file limit..."
+
+              # If this is a replacement (same filename exists), just remove the old one
+              if [ -f "playlists/${FILENAME}" ]; then
+                echo "Replacing existing: $FILENAME"
+                rm "playlists/${FILENAME}"
+              else
+                # Delete the oldest file (by modification time)
+                OLDEST=$(ls -t playlists/${USERNAME}-* 2>/dev/null | tail -1)
+                echo "Removing oldest playlist: $OLDEST"
+                rm "$OLDEST"
+              fi
+            elif [ -f "playlists/${FILENAME}" ]; then
+              echo "Replacing existing: $FILENAME"
+              rm "playlists/${FILENAME}"
+            fi
+          fi
+
+          # Move the new playlist into place
+          mv playlist.csv "playlists/${FILENAME}"
+          echo "Saved: playlists/${FILENAME}"
+
+      - name: Commit and push
+        if: steps.check.outputs.skip != 'true'
+        env:
+          FILENAME: ${{ steps.meta.outputs.filename }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add "playlists/${FILENAME}"
+          git commit -m "Add playlist: ${FILENAME} (${{ steps.validate.outputs.line_count }} stations)"
+          git push
+
+      - name: Close issue on success
+        if: success() && steps.check.outputs.skip != 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const filename = '${{ steps.meta.outputs.filename }}';
+            const stationCount = '${{ steps.validate.outputs.line_count }}';
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `✅ **Published!**\n\nYour playlist \`${filename}\` (${stationCount} stations) will appear in ehRadio Curated Lists shortly.\n\nThanks for sharing! 🎵`
+            });
+
+            await github.rest.issues.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              state: 'closed'
+            });
+
+      - name: Trigger release workflow
+        if: success() && steps.check.outputs.skip != 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'convert-playlists.yml',
+              ref: 'main'
+            });
+            console.log('Triggered convert-playlists.yml');
+
+      - name: Comment on failure
+        if: failure() && steps.check.outputs.skip != 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `❌ **Failed to process your playlist.**\n\nThe converter could not find any valid stations in your submission.\n\nMany formats are accepted — see the [README](https://github.com/${context.repo.owner}/${context.repo.repo}/blob/main/README.md#input-formats) for examples.\n\nA maintainer can also help if you're stuck.`
+            });

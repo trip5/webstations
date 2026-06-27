@@ -1,10 +1,40 @@
 #!/usr/bin/env python3
 """
-Playlist Converter - Standardizes various playlist formats
-Converts CSV and JSON files from playlists.master/ to playlists/
-Output formats:
-  - CSV: name\turl\tovol (tab-delimited)
-  - JSON: [{"name":"...","url":"...","ovol":"0"},...]
+Playlist Converter — Standardizes internet radio playlist files for webstations.
+
+Reads playlist files from playlists/ and writes standardized CSV + JSON to playlists-output/.
+Used both locally and by GitHub Actions (convert-playlists.yml, process-submission.yml).
+
+## Quick start
+    python convert_playlists.py                  # convert all files in playlists/
+    python convert_playlists.py --validate FILE  # validate a single file, print station count
+
+## Accepted input formats (auto-detected per line)
+
+### CSV / plain text
+    Tab-delimited        My Station\thttp://example.com/stream\t0
+    Two-space-delimited  My Station  http://example.com/stream  0
+    Space-delimited      My Station http://example.com/stream 0
+    URL-only             http://example.com/stream        (name auto-generated)
+    Bare domain          example.com:8000/path            (http:// prepended)
+    Embedded URL         Some Name http://example.com/... (URL extracted from text)
+    Any field order      Name, URL, and ovol auto-detected regardless of position
+    Mixed per line       Each line's delimiter style detected independently
+    Unicode names        Full UTF-8 support (Cyrillic, accented, CJK, etc.)
+
+### JSON
+    JSONL (one per line) {"name":"Station","url":"http://..."}
+    JSON array           [{"name":"...","url":"..."}]
+    Ka-Radio format      {"Name":"RTL","URL":"host","File":"/path","Port":"80","ovol":"-4"}
+
+### Field auto-detection
+    URL   — starts with http://, https://, or bare domain (example.com/path)
+    Ovol  — integer -64..64 (clamped to ±30); optional, defaults to 0
+    Name  — any remaining field; generated from URL if missing
+
+## Output formats (written to playlists-output/)
+    CSV   — tab-delimited:   name\turl\tovol
+    JSON  — NDJSON:          {"name":"...","url":"...","ovol":"0"}  (one object per line)
 """
 
 import os
@@ -459,8 +489,30 @@ class PlaylistConverter:
         return entries
 
 
+def validate_file(filepath: str) -> int:
+    """Validate a single playlist file. Prints entry count and returns exit code (0=success, 1=failure)."""
+    converter = PlaylistConverter()
+    path = Path(filepath)
+    if not path.exists():
+        print(f"ERROR: File not found: {filepath}")
+        return 1
+    entries = converter.parse_file(path)
+    count = len(entries)
+    if count == 0:
+        print(f"ERROR: No valid entries found in '{path.name}'.")
+        print(f"See README.md for accepted playlist formats.")
+        return 1
+    print(f"OK: {count} station(s) parsed successfully")
+    return 0
+
+
 def main():
     """Main entry point"""
+    # --validate mode: validate a single file and exit
+    if len(sys.argv) >= 3 and sys.argv[1] == '--validate':
+        filepath = sys.argv[2]
+        return validate_file(filepath)
+    
     print("=" * 60)
     print("Playlist Converter")
     print("=" * 60)
