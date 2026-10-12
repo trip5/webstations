@@ -1,8 +1,8 @@
 ---
 name: Playlist Submission
 about: Submit your playlist to webstations
-title: ''
-labels: ['playlist']
+title: 'Playlist Submission'
+labels: ['playlist-submission']
 assignees: ''
 
 ---
@@ -16,6 +16,8 @@ Either attach a csv or json playlist file or copy and paste the contents of the 
 To avoid overloading this repo, users will be restricted to 2 unique playlist submissions. Older playlists will be replaced by newer submissions. Same-name submissions will always be replaced.
 
 You can enter comments but it's unlikely they will ever be read.
+
+This will be automatically processed by a workflow so be sure it has the label `playlist-submission`.
 
 Thanks for participating!
 

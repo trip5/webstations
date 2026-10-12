@@ -2,14 +2,29 @@ name: Process Playlist Submission
 
 on:
   issues:
-    types: [opened]
+    types: [opened, labeled]
   issue_comment:
     types: [created]
 
 jobs:
   process-playlist:
-    # Run on every issue/comment — the "Check for playlist data" step below
-    # exits gracefully (skip=true) when no playlist data is found.
+    # Only submissions created from the "Playlist Submission" issue template are
+    # processed — that template applies the `playlist-submission` label
+    # (.github/ISSUE_TEMPLATE/playlist-submission.md).
+    #
+    # The label is required on every trigger so unrelated issues and comments
+    # never start a run:
+    #   - gate applies to both `issues` and `issue_comment` events
+    #   - `labeled` is in `types` so an issue that was created/reopened without
+    #     the label is still picked up once the label is added to it
+    #   - comments authored by github-actions[bot] are ignored, so the bot's own
+    #     success/failure comments cannot re-trigger the workflow
+    #   - comments on closed issues are ignored (the submission is already over)
+    if: >-
+      contains(github.event.issue.labels.*.name, 'playlist-submission') &&
+      github.event.issue.state == 'open' &&
+      (github.event_name != 'issue_comment' ||
+       github.event.comment.user.login != 'github-actions[bot]')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -27,10 +42,15 @@ jobs:
 
       - name: Build combined body (issue + comment)
         id: body
+        # SECURITY: untrusted issue/comment text is only ever delivered through
+        # `env:`. An inline `${{ github.event.* }}` inside `run:` is substituted
+        # into the shell source *before* the script executes, so a crafted body
+        # containing shell metacharacters could run arbitrary commands in the
+        # runner. Values arriving via `env:` are data and cannot break out.
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
         run: |
-          # Use env vars to safely capture multiline content (avoids bash quoting issues)
-          ISSUE_BODY="${{ github.event.issue.body }}"
-          COMMENT_BODY="${{ github.event.comment.body }}"
           BODY="$ISSUE_BODY"
           if [ -n "$COMMENT_BODY" ]; then
             BODY="${BODY}${COMMENT_BODY}"
@@ -59,11 +79,15 @@ jobs:
       - name: Extract metadata (username + playlist name)
         if: steps.check.outputs.skip != 'true'
         id: meta
+        env:
+          # Event data passed via env, never interpolated into `run:` (same
+          # hardening rule as the "Build combined body" step above).
+          ISSUE_AUTHOR: ${{ github.event.issue.user.login }}
         run: |
           BODY=$(cat /tmp/combined_body.txt)
 
           # Extract GitHub username from issue author
-          USERNAME="${{ github.event.issue.user.login }}"
+          USERNAME="$ISSUE_AUTHOR"
           echo "username=$USERNAME" >> $GITHUB_OUTPUT
 
           # Extract PLAYLIST_NAME from issue body (handles "…", '…', and spaces around =)
@@ -194,12 +218,13 @@ jobs:
         if: steps.check.outputs.skip != 'true'
         env:
           FILENAME: ${{ steps.meta.outputs.filename }}
+          STATION_COUNT: ${{ steps.validate.outputs.line_count }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
           git add "playlists/${FILENAME}"
-          git commit -m "Add playlist: ${FILENAME} (${{ steps.validate.outputs.line_count }} stations)"
+          git commit -m "Add playlist: ${FILENAME} (${STATION_COUNT} stations)"
           git push
 
       - name: Close issue on success

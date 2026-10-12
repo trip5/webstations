@@ -8,7 +8,7 @@ The project automatically converts playlist files from various formats into CSV 
 
 These files are then put into the latest Release with an `index.json` which points to each file.
 
-These files are consumed by **Curated Lists** in [ehRadio](https://github.com/trip5/ehRadio) to facilitate importing of playlists directly via the WebUI.
+These files are consumed by **Curated Lists** in [ehRadio](https://github.com/trip5/ehRadio) to facilitate importing of streams and playlists directly via the WebUI.
 
 ## GitHub Actions
 
@@ -21,7 +21,7 @@ Any push to the `main` branch automatically triggers the workflow, which:
 
 ### Submit via GitHub Issue
 
-1. Create a new issue with the **`playlist`** label
+1. Open a new issue using the **Playlist Submission** template — it applies the required **`playlist-submission`** label automatically. Issues without that label are never processed by the workflow.
 2. Include the text of your playlist file between markers:
    ```
    PLAYLIST_NAME="My Stations"
@@ -32,10 +32,11 @@ Any push to the `main` branch automatically triggers the workflow, which:
    ```
    Or attach a `.csv` or `.json` file to the issue (or paste JSON between the markers — the parser auto-detects it).
 3. The workflow validates your playlist, commits it, and auto-closes the issue
+4. Removing the `playlist-submission` label stops processing; re-adding it re-runs the submission
 
 Any format from the [Input Formats](#input-formats) section above is accepted — the converter handles all of them.
 
-Errors will result in a comment on the Issue.  Playlists can be re-submitted as a comment and the workflow will attempt to process it again... up to 5 times.
+Errors will result in a comment on the Issue.  Playlists can be re-submitted as a comment while the Issue remains open and the workflow will attempt to process it again... up to 5 times. Comments on a closed Issue are ignored, as are comments made by the bot itself.
 
 ### Submit via Pull Request
 
@@ -127,7 +128,8 @@ A master index file is automatically generated in `playlists/index.json` listing
 
 | Date       | Release Notes    |
 | ---------- | ---------------- |
+| 2026.10.12 | Submissions workflow fixed |
 | 2026.06.27 | Submissions now possible through `Issues` |
-| 2026.02.20 | Interactions eith `ehRadio` working |
+| 2026.02.20 | Interactions with `ehRadio` working |
 | 2026.02.09 | Actually began work on the idea |
 | 2025.06.11 | First commit, idea conceived |
