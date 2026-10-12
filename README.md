@@ -21,7 +21,7 @@ Any push to the `main` branch automatically triggers the workflow, which:
 
 ### Submit via GitHub Issue
 
-1. Open a new issue using the **Playlist Submission** template — it applies the required **`playlist-submission`** label automatically. Issues without that label are never processed by the workflow.
+1. Open a new issue using the **Playlist Submission** template which applies the required **`playlist-submission`** label automatically. Issues without that label are never processed by the workflow.
 2. Include the text of your playlist file between markers:
    ```
    PLAYLIST_NAME="My Stations"
