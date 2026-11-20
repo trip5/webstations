@@ -58,10 +58,12 @@ Every line is auto-classified as one of these delimiter styles:
 | **Two-space-delimited** | Contains 2+ consecutive spaces | `My Station  http://example.com/stream  0` |
 | **Space-delimited** | Single spaces (fallback) | `My Station http://example.com/stream 0` |
 
-Within each style, the parser auto-detects which field is the name, URL, and ovol:
+Within each style, the parser auto-detects which field is the name, URL, and level:
 - **URL** — recognized by `http://`/`https://` prefix or bare domain (e.g. `example.com/path`)
+- **Level** — the 3rd field, either a plain integer (**`ovol`**) or a **`dB`-prefixed** number (`dBcut`). A line carries one or the other, never both, so CSV stays 3 fields.
 - **Ovol** — any integer from -64 to 64 (clamped to ±30); optional, defaults to `0`
-- **Name** — the remaining non-URL, non-ovol field; if missing, auto-generated from the URL
+- **dBcut** — `dB` followed by a whole number (`dB0` is valid, case-insensitive); optional, never clamped
+- **Name** — the remaining field(s); if missing, auto-generated from the URL
 
 This means field order doesn't matter. All of these work:
 ```
@@ -79,6 +81,8 @@ http://example.com/stream	My Station
 | **Embedded URL** in name text | `Казак ФМ http://radio.kazak.fm/kazak_fm.mp3` | URL extracted, preceding text becomes name |
 | **Unicode names** | `РЕТРО ХИТ - RETRO HIT http://retro.volna.top/Retro` | Full Unicode support |
 | **Mixed styles** per file | Line 1 tab-delimited, line 2 space-delimited | Each line auto-detected independently |
+| **dB-prefixed level** | `Radio Caroline 320 http://example.com/a.mp3 dB5` | Level becomes `dBcut`; CSV keeps `dB5`, JSON adds `"dBcut":"5"` |
+| **Plain level** | `My Station http://example.com/stream 0` | Level becomes `ovol`; no `dBcut` key is written |
 
 ### JSON (`.json` or `.jsonl`)
 
@@ -94,19 +98,22 @@ The parser auto-detects the JSON structure on the first line:
 - **Name**: `name`, `Name`, `title`
 - **URL**: `url_resolved` (priority), `url`, or built from `host`/`URL` + `file`/`File` + `port`/`Port`
 - **Ovol**: `ovol`, `Ovol`
+- **dBcut**: `dBcut`, `dbcut`, `DBcut` (whole number; accepted as JSON string or number)
 
 ## Output Formats
 
 Each input file is converted to **both formats**:
 
-**CSV files**: Tab-delimited format
+**CSV files**: Tab-delimited, exactly 3 fields. The third field is either a plain ovol or a `dB`-prefixed dBcut:
 ```
-Station Name   http://url.com/stream   0
+Station Name	http://url.com/stream	0
+Radio Caroline 320	http://url.com/stream	dB5
 ```
 
-**JSON files**: Compact JSON array format (no line breaks)
+**JSON files**: One compact object per line (NDJSON). `ovol` is always the 3rd key; `dBcut` is appended only when the input carried a `dB` level:
 ```json
-[{"name":"Station Name","url":"http://url.com/stream","ovol":"0"}]
+{"name":"Station Name","url":"http://url.com/stream","ovol":"0"}
+{"name":"Radio Caroline 320","url":"http://url.com/stream","ovol":"0","dBcut":"5"}
 ```
 
 ## Master Index (`index.json`)
@@ -128,6 +135,7 @@ A master index file is automatically generated in `playlists/index.json` listing
 
 | Date       | Release Notes    |
 | ---------- | ---------------- |
+| 2026.11.20 | Added `dBcut` level support for ehRadio volume normalization |
 | 2026.10.12 | Submissions workflow fixed |
 | 2026.06.27 | Submissions now possible through `Issues` |
 | 2026.02.20 | Interactions with `ehRadio` working |
