@@ -55,8 +55,9 @@ Every line is auto-classified as one of these delimiter styles:
 | Style | Trigger | Example |
 |---|---|---|
 | **Tab-delimited** | Contains `\t` | `My Station\thttp://example.com/stream\t0` |
-| **Two-space-delimited** | Contains 2+ consecutive spaces | `My Station  http://example.com/stream  0` |
-| **Space-delimited** | Single spaces (fallback) | `My Station http://example.com/stream 0` |
+| **Space-delimited** | Any run of spaces — one or more | `My Station  http://example.com/stream  0` |
+
+A run of spaces always acts as a single delimiter, and consecutive spaces inside a name are collapsed to one space when it is written. Accidental double spaces therefore never leave padding or trailing spaces in the output, and column-padded input such as `Radio The Zone Dublin     Bank 1 Stacja 86  http://...` keeps its full name.
 
 Within each style, the parser auto-detects which field is the name, URL, and level:
 - **URL** — recognized by `http://`/`https://` prefix or bare domain (e.g. `example.com/path`)
@@ -135,6 +136,7 @@ A master index file is automatically generated in `playlists/index.json` listing
 
 | Date       | Release Notes    |
 | ---------- | ---------------- |
+| 2026.11.27 | Spaces are now collapsed to 1 space |
 | 2026.11.20 | Added `dBcut` level support for ehRadio volume normalization |
 | 2026.10.12 | Submissions workflow fixed |
 | 2026.06.27 | Submissions now possible through `Issues` |

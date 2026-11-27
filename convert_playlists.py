@@ -13,14 +13,15 @@ Used both locally and by GitHub Actions (convert-playlists.yml, process-submissi
 
 ### CSV / plain text
     Tab-delimited        My Station\thttp://example.com/stream\t0
-    Two-space-delimited  My Station  http://example.com/stream  0
-    Space-delimited      My Station http://example.com/stream 0
+    Space-delimited      Any run of spaces separates fields:
+                         My Station  http://example.com/stream   0
     URL-only             http://example.com/stream        (name auto-generated)
     Bare domain          example.com:8000/path            (http:// prepended)
     Embedded URL         Some Name http://example.com/... (URL extracted from text)
     Any field order      Name, URL, and level auto-detected regardless of position
     Mixed per line       Each line's delimiter style detected independently
     Unicode names        Full UTF-8 support (Cyrillic, accented, CJK, etc.)
+    Whitespace           Runs of spaces collapse to one; names are trimmed
 
 ### Level field (3rd field — a line always has exactly three fields)
     Ovol                 plain integer -64..64 (clamped to ±30), defaults to 0
@@ -257,90 +258,6 @@ class PlaylistConverter:
             name = self.url_to_name(url)
         return Station(name, url, ovol, dbcut)
 
-    def _parse_two_space_delimited(self, line: str) -> Optional[Station]:
-        """Parse two-space-delimited line (2+ spaces as delimiter)"""
-        # Split on 2 or more consecutive spaces
-        tokens = [t.strip() for t in re.split(r'  +', line) if t.strip()]
-        t = len(tokens)
-        if t == 1:
-            if self._is_url(tokens[0]):
-                url = self._normalize_url(tokens[0])
-                name = self.url_to_name(url)
-                return Station(name, url)
-            return None
-        elif t == 2:
-            url_idx = -1
-            name_idx = -1
-            for i in range(2):
-                if self._is_url(tokens[i]):
-                    url_idx = i
-                else:
-                    name_idx = i
-            if url_idx == -1:
-                # Try to extract embedded URL from either token
-                for i in range(2):
-                    extracted = self._extract_url_from_token(tokens[i])
-                    if extracted:
-                        name_prefix, url_part = extracted
-                        url = self._normalize_url(url_part)
-                        other_idx = 1 - i
-                        ovol = 0
-                        if self._is_ovol(tokens[other_idx]):
-                            ovol = self._parse_ovol(tokens[other_idx])
-                            name = name_prefix if name_prefix else self.url_to_name(url)
-                        else:
-                            name = name_prefix if name_prefix else tokens[other_idx]
-                        if not name:
-                            name = self.url_to_name(url)
-                        return Station(name, url, ovol)
-                return None
-            if name_idx == -1:
-                # URL found but no non-URL token for name
-                name = self.url_to_name(self._normalize_url(tokens[url_idx]))
-                return Station(name, self._normalize_url(tokens[url_idx]))
-            url = self._normalize_url(tokens[url_idx])
-            name = tokens[name_idx]
-            return Station(name, url)
-        elif t >= 3:
-            # Find URL (must contain . and / or ://)
-            url_idx = -1
-            for i, token in enumerate(tokens):
-                if self._is_url(token):
-                    url_idx = i
-                    break
-            if url_idx == -1:
-                return None
-            # Find the level field: a dB-prefixed number wins over a plain ovol
-            dbcut = None
-            level_idx = -1
-            for i, token in enumerate(tokens):
-                if i == url_idx:
-                    continue
-                if self._is_dbcut(token):
-                    level_idx = i
-                    dbcut = self._parse_dbcut(token)
-                    break
-            ovol = 0
-            if dbcut is None:
-                for i, token in enumerate(tokens):
-                    if i == url_idx:
-                        continue
-                    if self._is_ovol(token):
-                        level_idx = i
-                        ovol = self._parse_ovol(token)
-                        break
-            # Find name: first field that's not the URL and not the level field
-            name = ''
-            for i, token in enumerate(tokens):
-                if i == url_idx or i == level_idx:
-                    continue
-                if not name:
-                    name = token
-            url = self._normalize_url(tokens[url_idx])
-            if not name:
-                name = self.url_to_name(url)
-            return Station(name, url, ovol, dbcut)
-        return None
 
     def _is_url(self, token: str) -> bool:
         """Check if token looks like a URL (must start with protocol or bare domain)"""
@@ -394,6 +311,31 @@ class PlaylistConverter:
         if not url.startswith('http://') and not url.startswith('https://'):
             return f'http://{url}'
         return url
+
+    def _finalize_station(self, station: Optional[Station]) -> Optional[Station]:
+        """Normalize a station parsed from CSV/plain text.
+
+        Any run of whitespace inside the name collapses to a single space, so
+        column-aligned input such as "Radio The Zone Dublin     Bank 1 Stacja 86"
+        yields the full name with no padding and no split. If the URL field still
+        contains whitespace (a tab cell holding a URL and a level), the first
+        piece is kept as the URL and the rest is re-examined as a level, with
+        dBcut winning over ovol.
+        """
+        if station is None:
+            return None
+        name = ' '.join(str(station.name).split())
+        pieces = str(station.url).split()
+        if not pieces:
+            return Station(name, station.url, station.ovol, station.dbcut)
+        url = pieces[0]
+        ovol, dbcut = station.ovol, station.dbcut
+        for extra in pieces[1:]:
+            if dbcut is None and self._is_dbcut(extra):
+                dbcut = self._parse_dbcut(extra)
+            elif ovol == 0 and self._is_ovol(extra):
+                ovol = self._parse_ovol(extra)
+        return Station(name, url, ovol, dbcut)
     
     def parse_json_line(self, line: str) -> Optional[Station]:
         """Parse a JSON line (Ka-Radio format with URL/File/Port or standard format)"""
@@ -550,18 +492,19 @@ class PlaylistConverter:
                     except Exception:
                         pass
             else:
-                # CSV/TSV detection: for each line, use tab-delimited if tab present, 
-                # two-space-delimited if 2+ spaces present, else space-delimited
+                # CSV/TSV: a tab always delimits fields; otherwise any run of
+                # spaces (one or more) is the delimiter. Parsed names are then
+                # finalized, so stray or column-padding spaces collapse to one
+                # and never leak into the output.
                 for line in f:
                     line = line.strip()
                     if not line:
                         continue
                     if '\t' in line:
                         result = self._parse_tab_delimited(line)
-                    elif re.search(r'  +', line):  # 2 or more consecutive spaces
-                        result = self._parse_two_space_delimited(line)
                     else:
                         result = self._parse_space_delimited(line)
+                    result = self._finalize_station(result)
                     if result:
                         entries.append(result)
         return entries
