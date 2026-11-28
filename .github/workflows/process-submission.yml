@@ -2,29 +2,30 @@ name: Process Playlist Submission
 
 on:
   issues:
-    types: [opened, labeled]
+    # `labeled` is deliberately absent: this workflow applies the
+    # `playlist-submission` label itself, and a `labeled` trigger would start a
+    # second run that processes the same submission again.
+    types: [opened]
   issue_comment:
     types: [created]
 
 jobs:
   process-playlist:
-    # Only submissions created from the "Playlist Submission" issue template are
-    # processed — that template applies the `playlist-submission` label
-    # (.github/ISSUE_TEMPLATE/playlist-submission.md).
-    #
-    # The label is required on every trigger so unrelated issues and comments
-    # never start a run:
-    #   - gate applies to both `issues` and `issue_comment` events
-    #   - `labeled` is in `types` so an issue that was created/reopened without
-    #     the label is still picked up once the label is added to it
-    #   - comments authored by github-actions[bot] are ignored, so the bot's own
-    #     success/failure comments cannot re-trigger the workflow
-    #   - comments on closed issues are ignored (the submission is already over)
+    # A submission is recognised by any one of:
+    #   - the `playlist-submission` label (template issues, manual labelling)
+    #   - the `Playlist Submission` title
+    #   - a PLAYLIST_START/ marker in the issue body — this is what ehRadio
+    #     writes when it pre-populates an issue through a URL, where no template
+    #     label is applied and public submitters cannot set labels themselves.
+    # Comments are processed only while the issue is a qualifying submission and
+    # the comment was not written by the actions bot (avoids a self-trigger loop).
     if: >-
-      contains(github.event.issue.labels.*.name, 'playlist-submission') &&
       github.event.issue.state == 'open' &&
       (github.event_name != 'issue_comment' ||
-       github.event.comment.user.login != 'github-actions[bot]')
+       github.event.comment.user.login != 'github-actions[bot]') &&
+      (contains(github.event.issue.labels.*.name, 'playlist-submission') ||
+       github.event.issue.title == 'Playlist Submission' ||
+       contains(github.event.issue.body, 'PLAYLIST_START/'))
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -75,6 +76,21 @@ jobs:
             echo "has_markers=$HAS_MARKERS" >> $GITHUB_OUTPUT
             echo "has_attachment=$HAS_ATTACHMENT" >> $GITHUB_OUTPUT
           fi
+
+      - name: Apply playlist-submission label
+        if: steps.check.outputs.skip != 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Tag recognised submissions for maintainers. `labeled` is not a
+            // workflow trigger, so adding the label cannot start a second run.
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              labels: ['playlist-submission']
+            });
+            console.log('Label ensured: playlist-submission');
 
       - name: Extract metadata (username + playlist name)
         if: steps.check.outputs.skip != 'true'

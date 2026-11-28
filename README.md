@@ -21,7 +21,7 @@ Any push to the `main` branch automatically triggers the workflow, which:
 
 ### Submit via GitHub Issue
 
-1. Open a new issue using the **Playlist Submission** template which applies the required **`playlist-submission`** label automatically. Issues without that label are never processed by the workflow.
+1. Open a new issue using the **Playlist Submission** template, or let ehRadio pre-fill an issue for you. A submission is recognised by the **`playlist-submission`** label, the `Playlist Submission` title, or the `PLAYLIST_START/` marker in the body — no label is required from you.
 2. Include the text of your playlist file between markers:
    ```
    PLAYLIST_NAME="My Stations"
@@ -32,7 +32,7 @@ Any push to the `main` branch automatically triggers the workflow, which:
    ```
    Or attach a `.csv` or `.json` file to the issue (or paste JSON between the markers — the parser auto-detects it).
 3. The workflow validates your playlist, commits it, and auto-closes the issue
-4. Removing the `playlist-submission` label stops processing; re-adding it re-runs the submission
+4. The workflow adds the **`playlist-submission`** label to recognised submissions so maintainers can spot them
 
 Any format from the [Input Formats](#input-formats) section above is accepted — the converter handles all of them.
 
@@ -136,7 +136,7 @@ A master index file is automatically generated in `playlists/index.json` listing
 
 | Date       | Release Notes    |
 | ---------- | ---------------- |
-| 2026.11.27 | Spaces are now collapsed to 1 space |
+| 2026.11.27 | Spaces are now collapsed to 1 space, workflow fixed |
 | 2026.11.20 | Added `dBcut` level support for ehRadio volume normalization |
 | 2026.10.12 | Submissions workflow fixed |
 | 2026.06.27 | Submissions now possible through `Issues` |

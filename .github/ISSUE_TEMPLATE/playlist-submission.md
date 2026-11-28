@@ -17,7 +17,7 @@ To avoid overloading this repo, users will be restricted to 2 unique playlist su
 
 You can enter comments but it's unlikely they will ever be read.
 
-This will be automatically processed by a workflow so be sure it has the label `playlist-submission`.
+This will be automatically processed by a workflow, which also adds the `playlist-submission` label to your issue.
 
 Thanks for participating!
 
